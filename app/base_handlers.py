@@ -3,7 +3,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Command
 from aiogram.types import CallbackQuery
 
-from app.keyboards import task_inline_keyboard, one_time_task_menu_kb, task_parameters_kb
+from app.keyboards import task_inline_keyboard, create_one_time_task_menu_keyboard
 from app.miscellaneous import TaskType, get_task_text, OneTimeTask
 
 
@@ -32,7 +32,7 @@ async def task_handler(message: types.Message):
 
 async def one_time_task(call: CallbackQuery):
     # Send a message with buttons
-    await call.message.edit_text("Choose on of th options.", reply_markup=one_time_task_menu_kb)
+    await call.message.edit_text("Choose on of th options.", reply_markup=create_one_time_task_menu_keyboard())
 
 
 def register_base_handlers(dp: Dispatcher):

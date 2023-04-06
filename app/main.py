@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, executor, types
@@ -16,7 +17,6 @@ bot = Bot(token=bot_token, parse_mode=types.ParseMode.HTML)
 
 # Create a Dispatcher instance
 dp = Dispatcher(bot, storage=MemoryStorage())
-set_default_commands(dp)
 # Register handlers here
 register_base_handlers(dp=dp)
 register_one_time_task_handlers(dp=dp)

@@ -1,12 +1,10 @@
-
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 
-from .keyboards import task_parameters_kb, create_year_keyboard, create_month_keyboard, \
-    create_keyboard_according_date_type
+from .keyboards import create_year_keyboard, create_keyboard_according_date_type, create_one_time_task_create_task_parameters
 from .logger import cc_logger
-from .miscellaneous import get_task_text, OneTimeTask
+from .miscellaneous import get_task_text, OneTimeTask, time_parser
 
 
 async def one_time_task_date_state_getter(state: FSMContext, one_time_task_data: dict) -> dict:
@@ -40,90 +38,114 @@ async def one_time_task_date_state_setter(state: FSMContext, one_time_task_data:
 
 
 async def check_if_previous(call: CallbackQuery, date_data: dict, current_date_type: str):
-
     if date_data.get(current_date_type) is None:
         await call.answer(f'Please select the {current_date_type}, before proceeding next step')
         return False
 
 
-def tick_date_button(new_date, keyboard: InlineKeyboardMarkup, date_type):
+def tick_date_type_button(date_date: dict, keyboard: InlineKeyboardMarkup):
     for raw in keyboard.inline_keyboard:
         for button in raw:
-            if button.callback_data.startswith(date_type):
-                if button.callback_data.split('|')[1] == new_date:
+            if button.callback_data.startswith('set'):
+                button_data = button.callback_data.split('|')
+
+                if button_data[1] == date_date.get(button_data[0].split('_')[1]):
                     button.text += '\u2705'
                     break
+
             else:
                 break
 
-    return keyboard
-async def add_one_time_task(call: CallbackQuery, state: FSMContext):
-    # Ask the user to enter a name
-    await call.message.edit_text("<b>Please enter a name for your task:</b>")
 
-    # Set the "add_task" state to "waiting_for_name"
+async def add_one_time_task(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    one_time_task_data = data.get('one_time_task')
+    if one_time_task_data is None:
+        one_time_task_data = dict()
+        data['one_time_task'] = one_time_task_data
+    await call.message.edit_text("<b>Please enter a name for your task:</b>" + get_task_text(one_time_task_data))
+
     await state.set_state(OneTimeTask.SETTING_A_NAME)
+    await state.update_data(data)
 
 
 async def enter_name(msg: types.Message, state: FSMContext):
     data = await state.get_data()
-    data["one_time_task"] = dict()
-    data["one_time_task"]["name"] = msg.text
+    data['one_time_task']['name'] = msg.text
 
     text = "Choose on of the following options to apply\n" + get_task_text(data["one_time_task"])
     await msg.answer(
         text,
-        reply_markup=task_parameters_kb)
+        reply_markup=create_one_time_task_create_task_parameters())
 
     await state.finish()
     await state.update_data(data)
 
 
-async def set_start_date(call: CallbackQuery, state: FSMContext):
+async def set_date(call: CallbackQuery, state: FSMContext):
+    if call.data == 'set_start_date':
+        await state.set_state(OneTimeTask.SETTING_A_START_DATE)
+    elif call.data == 'set_due_date':
+        await state.set_state(OneTimeTask.SETTING_A_DUE_DATE)
 
-    text = "Let's first enter a year!"
-    await call.message.edit_text(text, reply_markup=create_year_keyboard())
+    data = await state.get_data()
+    one_time_task_data = data.get('one_time_task')
 
-    await state.set_state(OneTimeTask.SETTING_A_START_DATE)
+    date_data = await one_time_task_date_state_getter(state, one_time_task_data)
+
+    text = "Let's first select a year!"
+
+    keyboard = create_year_keyboard()
+    data['current_keyboard'] = 'year'
+    await state.update_data(data)
+    tick_date_type_button(date_data, keyboard)
+
+    await call.message.edit_text(text + '\n' + time_parser(date_data), reply_markup=keyboard)
 
 
-async def base_one_time_task_date_handler(call: CallbackQuery, state: FSMContext,
-                                          year='2023', month='1'):
+async def base_one_time_task_date_handler(call: CallbackQuery, state: FSMContext):
     """
 
     :param call:
     :param state:
-    :param month: conditional param to determine the number of day in month of the year
-    :param year:  conditional param to determine the number of day in month of the year
     :return:
     """
 
     date_type_prefixed = call.data.split('|')[0]
     data = await state.get_data()
     date_type = date_type_prefixed.split('_')[1]
-    data['current_keyboard'] = date_type
+
     one_time_task_data = data['one_time_task']
     date_data = await one_time_task_date_state_getter(state, one_time_task_data)
-    new_date_type_keyboard = create_keyboard_according_date_type(date_type, year, month)
+
+    new_date_type_keyboard = create_keyboard_according_date_type(date_type, date_data)
 
     new_date_type_value = call.data.split('|')[1]
     current_date_type_value = date_data.get(date_type)
 
     if new_date_type_value != current_date_type_value:
-        tick_date_button(new_date_type_value, new_date_type_keyboard, date_type_prefixed)
         date_data[date_type] = new_date_type_value
 
     elif new_date_type_value == current_date_type_value:
         date_data[date_type] = None
 
+    tick_date_type_button(date_data, new_date_type_keyboard)
+
+    if date_type == 'ampm':
+        date_type = 'hour'
+    data['current_keyboard'] = date_type
+
     await state.update_data(data)
 
-    return new_date_type_keyboard
+    return new_date_type_keyboard, date_data
 
 
 async def date_type_handler(call: CallbackQuery, state: FSMContext):
-    keyboard = await base_one_time_task_date_handler(call, state)
-    await call.message.edit_reply_markup(keyboard)
+    keyboard, date_data = await base_one_time_task_date_handler(call, state)
+
+    text_last = call.message.text.find('\n')
+
+    await call.message.edit_text(call.message.text[:text_last] + '\n' + time_parser(date_data), reply_markup=keyboard)
 
 
 async def next_handler(call: CallbackQuery, state: FSMContext):
@@ -139,74 +161,117 @@ async def next_handler(call: CallbackQuery, state: FSMContext):
 
             current_keyboard_value = 'month'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
-            new_keyboard = tick_date_button(date_data.get(current_keyboard_value), new_keyboard, current_keyboard_value)
+            tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a month!', reply_markup=new_keyboard)
+            await call.message.edit_text('Select a month!' '\n' + time_parser(date_data), reply_markup=new_keyboard)
 
         case 'month':
 
             current_keyboard_value = 'day'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value,
-                                                               date_data['year'], date_data['month'])
-            new_keyboard = tick_date_button(date_data.get(current_keyboard_value), new_keyboard, current_keyboard_value)
+                                                               date_data)
+            tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a day!', reply_markup=new_keyboard)
+            await call.message.edit_text('Select a day!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
 
         case 'day':
             current_keyboard_value = 'hour'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
-            new_keyboard = tick_date_button(date_data.get(current_keyboard_value), new_keyboard, current_keyboard_value)
+            tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select an hour!', reply_markup=new_keyboard)
+            await call.message.edit_text('Select an hour!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
 
         case 'hour':
             current_keyboard_value = 'minute'
+            if date_data.get('ampm') is None:
+                await call.answer('Please select a date format')
+                return
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
-            new_keyboard = tick_date_button(date_data.get(current_keyboard_value), new_keyboard, current_keyboard_value)
+            tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a minute!', reply_markup=new_keyboard)
+            await call.message.edit_text('Select a minute!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
 
         case 'minute':
             current_keyboard_value = 'task_parameters'
             text = "Choose on of the following options to apply\n" + get_task_text(data["one_time_task"])
+            await call.message.edit_text(text, reply_markup=create_one_time_task_create_task_parameters())
+            await state.finish()
+
     data['current_keyboard'] = current_keyboard_value
     await state.update_data(data)
 
 
 async def back_handler(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
-    date_data = await one_time_task_date_state_getter(state, data['one_time_task'])
+    date_data = await one_time_task_date_state_getter(state, data.get('one_time_task'))
     current_keyboard_value = data.get("current_keyboard")
 
-    if current_keyboard == 'month':
+    # if await check_if_previous(call, date_data, current_keyboard_value) is False:
+    #     return
 
-        next_keyboard = 'year'
-        year_keyboard = create_year_keyboard()
-        selected_year = await one_time_task_date_state_getter(state,data['one_time_task'])
-        next_keyboard_markup = tick_date_button(selected_year['year'], year_keyboard, 'set_year')
+    match current_keyboard_value:
+        case 'year':
 
-    elif current_keyboard == 'day':
-        # If the current keyboard the day keyboard, switch to the month keyboard
-        next_keyboard = "month"
-        next_keyboard_markup = create_month_keyboard()
-    elif current_keyboard == "hour":
-        # If the current keyboard is the hour keyboard, switch to the day keyboard
-        next_keyboard = "day"
-        next_keyboard_markup = day_keyboard
-    elif current_keyboard == "minute":
-        # If the current keyboard is the minute keyboard, switch to the hour keyboard
-        next_keyboard = "hour"
-        next_keyboard_markup = hour_keyboard
-    else:
-        # If the current keyboard is the year keyboard, do nothing
-        await call.answer("You can't go back any further!")
-        return
+            current_keyboard_value = 'task_parameters'
+            text = "Choose on of the following options to apply\n" + get_task_text(data["one_time_task"])
+            await call.message.edit_text(text, reply_markup=create_one_time_task_create_task_parameters())
+            await state.finish()
 
-    # Update the user's State object with the new keyboard state
-    await state.update_data(current_keyboard=next_keyboard)
+        case 'month':
 
-    # Edit the message with the new keyboard
-    await call.message.edit_reply_markup(reply_markup=next_keyboard_markup)
+            current_keyboard_value = 'year'
+            new_keyboard = create_keyboard_according_date_type(current_keyboard_value,
+                                                               date_data)
+            tick_date_type_button(date_data, new_keyboard)
+
+            await call.message.edit_text('Select a year!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+
+        case 'day':
+            current_keyboard_value = 'month'
+            new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
+            tick_date_type_button(date_data, new_keyboard)
+
+            await call.message.edit_text('Select a month!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+
+        case 'hour':
+            current_keyboard_value = 'day'
+            new_keyboard = create_keyboard_according_date_type(current_keyboard_value, date_data)
+            tick_date_type_button(date_data, new_keyboard)
+
+            await call.message.edit_text('Select a day!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+
+        case 'minute':
+            current_keyboard_value = 'hour'
+            if date_data.get('ampm') is None:
+                await call.answer('Please select a date format')
+                return
+            new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
+            tick_date_type_button(date_data, new_keyboard)
+
+            await call.message.edit_text('Select an hour' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+
+    data['current_keyboard'] = current_keyboard_value
+    await state.update_data(data)
+
+
+async def cancel_date_setting(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    current_keyboard_value = 'task_parameters'
+    text = "Choose on of the following options to apply\n" + get_task_text(data["one_time_task"])
+    await call.message.edit_text(text, reply_markup=create_one_time_task_create_task_parameters())
+    await state.finish()
+    data['current_keyboard'] = current_keyboard_value
+    await state.update_data(data)
+
+
+async def set_description(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    one_time_task_data = data.get('one_time_task')
+
+    await call.message.edit_text("<b>Please enter a description for your task:</b>" + get_task_text(one_time_task_data))
+
+    await state.set_state(OneTimeTask.SETTING_A_DESCRIPTION)
+    await state.update_data(data)
 
 
 def register_one_time_task_handlers(dp: Dispatcher):
@@ -215,7 +280,7 @@ def register_one_time_task_handlers(dp: Dispatcher):
 
     dp.register_message_handler(enter_name, state=OneTimeTask.SETTING_A_NAME)
 
-    dp.register_callback_query_handler(set_start_date, lambda call: call.data == 'set_start_date')
+    dp.register_callback_query_handler(set_date, lambda call: call.data in ['set_start_date', 'set_due_date'])
 
     dp.register_callback_query_handler(date_type_handler, lambda call: call.data.startswith("set_year|"),
                                        state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
@@ -239,4 +304,7 @@ def register_one_time_task_handlers(dp: Dispatcher):
                                        state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
 
     dp.register_callback_query_handler(next_handler, lambda call: call.data == 'date_next',
+                                       state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
+
+    dp.register_callback_query_handler(cancel_date_setting, lambda call: call.data == 'date_cancel',
                                        state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
