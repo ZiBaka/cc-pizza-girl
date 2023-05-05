@@ -21,7 +21,7 @@ class OneTimeTask(StatesGroup):
     SETTING_A_STATUS = State()
 
 
-def time_parser(input_time_info: dict):
+def time_parser(input_time_info: dict) -> str:
 
     for key, value in input_time_info.copy().items():
         if value is None:
@@ -36,15 +36,34 @@ def time_parser(input_time_info: dict):
 
     if time_info != '':
         pass
-    return '<code>' + time_info + '</code>'
+    return time_info
 
 
 def date_is_completed(date_date: dict):
 
-    for v in date_date.items():
-        if v is None:
-            return
-        return False
+    required_dates = ('year', 'month', 'week', 'day', 'hour', 'ampm', 'minute')
+    for i in required_dates:
+        if date_date.get(i) is None:
+            return False
+        else:
+            return True
+
+
+def prioritized_deletion_of_date(date_data):
+
+    required_order = ('year', 'month', 'week', 'day', 'hour', 'minute')
+
+    for i in required_order:
+
+        if date_data.get(i) is None:
+            list_of_items_to_eliminate = required_order[required_order.index(i):]
+            for x in list_of_items_to_eliminate:
+                if x == 'hour':
+                    date_data['ampm'] = None
+                date_data[x] = None
+            break
+        else:
+            pass
 
 
 def get_task_text(task_data: dict) -> str:

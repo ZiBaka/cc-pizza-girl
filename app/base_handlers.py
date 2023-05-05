@@ -35,9 +35,14 @@ async def one_time_task(call: CallbackQuery):
     await call.message.edit_text("Choose on of th options.", reply_markup=create_one_time_task_menu_keyboard())
 
 
+async def restart_the_bot(msg: types.Message, state: FSMContext):
+    await msg.answer('The bot has been restarted')
+    await state.finish()
+
+
 def register_base_handlers(dp: Dispatcher):
     dp.register_message_handler(start_handler, Command("start"))
     dp.register_message_handler(help_handler, Command("help"))
     dp.register_message_handler(task_handler, Command("task"))
     dp.register_callback_query_handler(one_time_task, lambda call: call.data == 'one_time_task')
-
+    dp.register_message_handler(restart_the_bot, Command('restart'), state='*')

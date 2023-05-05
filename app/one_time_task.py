@@ -2,9 +2,11 @@ from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 
-from .keyboards import create_year_keyboard, create_keyboard_according_date_type, create_one_time_task_create_task_parameters
+from .keyboards import create_year_keyboard, create_keyboard_according_date_type, \
+    create_one_time_task_create_task_parameters
 from .logger import cc_logger
-from .miscellaneous import get_task_text, OneTimeTask, time_parser
+from .miscellaneous import get_task_text, OneTimeTask, time_parser, prioritized_deletion_of_date
+from .task_scheduler import notify_about_task_start
 
 
 async def one_time_task_date_state_getter(state: FSMContext, one_time_task_data: dict) -> dict:
@@ -66,6 +68,16 @@ async def add_one_time_task(call: CallbackQuery, state: FSMContext):
     await call.message.edit_text("<b>Please enter a name for your task:</b>" + get_task_text(one_time_task_data))
 
     await state.set_state(OneTimeTask.SETTING_A_NAME)
+
+    await state.update_data(data)
+
+
+async def edit_task_name(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    await call.message.edit_text("<b>Please send edited name for your task:</b>")
+
+    await state.set_state(OneTimeTask.SETTING_A_NAME)
+
     await state.update_data(data)
 
 
@@ -100,7 +112,7 @@ async def set_date(call: CallbackQuery, state: FSMContext):
     await state.update_data(data)
     tick_date_type_button(date_data, keyboard)
 
-    await call.message.edit_text(text + '\n' + time_parser(date_data), reply_markup=keyboard)
+    await call.message.edit_text(text + '\n' + '<code>' + time_parser(date_data) + '</code>', reply_markup=keyboard)
 
 
 async def base_one_time_task_date_handler(call: CallbackQuery, state: FSMContext):
@@ -128,6 +140,7 @@ async def base_one_time_task_date_handler(call: CallbackQuery, state: FSMContext
 
     elif new_date_type_value == current_date_type_value:
         date_data[date_type] = None
+        prioritized_deletion_of_date(date_data)
 
     tick_date_type_button(date_data, new_date_type_keyboard)
 
@@ -145,7 +158,8 @@ async def date_type_handler(call: CallbackQuery, state: FSMContext):
 
     text_last = call.message.text.find('\n')
 
-    await call.message.edit_text(call.message.text[:text_last] + '\n' + time_parser(date_data), reply_markup=keyboard)
+    await call.message.edit_text(call.message.text[:text_last] + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                 reply_markup=keyboard)
 
 
 async def next_handler(call: CallbackQuery, state: FSMContext):
@@ -163,7 +177,8 @@ async def next_handler(call: CallbackQuery, state: FSMContext):
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a month!' '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a month!' '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'month':
 
@@ -172,14 +187,16 @@ async def next_handler(call: CallbackQuery, state: FSMContext):
                                                                date_data)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a day!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a day!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'day':
             current_keyboard_value = 'hour'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select an hour!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select an hour!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'hour':
             current_keyboard_value = 'minute'
@@ -189,7 +206,8 @@ async def next_handler(call: CallbackQuery, state: FSMContext):
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a minute!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a minute!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'minute':
             current_keyboard_value = 'task_parameters'
@@ -224,21 +242,24 @@ async def back_handler(call: CallbackQuery, state: FSMContext):
                                                                date_data)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a year!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a year!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'day':
             current_keyboard_value = 'month'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a month!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a month!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'hour':
             current_keyboard_value = 'day'
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value, date_data)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select a day!' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select a day!' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
         case 'minute':
             current_keyboard_value = 'hour'
@@ -248,7 +269,8 @@ async def back_handler(call: CallbackQuery, state: FSMContext):
             new_keyboard = create_keyboard_according_date_type(current_keyboard_value)
             tick_date_type_button(date_data, new_keyboard)
 
-            await call.message.edit_text('Select an hour' + '\n' + time_parser(date_data), reply_markup=new_keyboard)
+            await call.message.edit_text('Select an hour' + '\n' + '<code>' + time_parser(date_data) + '</code>',
+                                         reply_markup=new_keyboard)
 
     data['current_keyboard'] = current_keyboard_value
     await state.update_data(data)
@@ -274,9 +296,21 @@ async def set_description(call: CallbackQuery, state: FSMContext):
     await state.update_data(data)
 
 
+async def task_complete(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    await call.message.edit_text('You have completed setting a task, I will tell when to start it')
+
+    data['chat_id'] = call.message.chat.id
+
+    await state.finish()
+    await notify_about_task_start(data)
+
+
+
 def register_one_time_task_handlers(dp: Dispatcher):
-    dp.register_callback_query_handler(add_one_time_task, lambda call: call.data == 'add_one_time_task'
-                                                                       or call.data == 'set_name')
+    dp.register_callback_query_handler(add_one_time_task, lambda call: call.data == 'add_one_time_task')
+
+    dp.register_callback_query_handler(edit_task_name, lambda call: call.data == call.data == 'set_name')
 
     dp.register_message_handler(enter_name, state=OneTimeTask.SETTING_A_NAME)
 
@@ -308,3 +342,10 @@ def register_one_time_task_handlers(dp: Dispatcher):
 
     dp.register_callback_query_handler(cancel_date_setting, lambda call: call.data == 'date_cancel',
                                        state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
+
+    dp.register_callback_query_handler(set_description, lambda call: call.data == 'set_description')
+
+    dp.register_callback_query_handler(set_description, lambda call: call.data == 'set_description',
+                                       state=[OneTimeTask.SETTING_A_DESCRIPTION])
+
+    dp.register_callback_query_handler(task_complete, lambda call: call.data == 'complete_task_setting')

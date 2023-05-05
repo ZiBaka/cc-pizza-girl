@@ -40,7 +40,7 @@ def create_day_keyboard(year, month):
     number_of_days = calendar.monthrange(year, month)[1]
     print(year, month, number_of_days)
     day_buttons = [InlineKeyboardButton(str(i), callback_data=f"set_day|{i}") for i in range(1, number_of_days + 1)]
-    day_keyboard = InlineKeyboardMarkup(row_width=3)
+    day_keyboard = InlineKeyboardMarkup(row_width=5)
     day_keyboard.add(*day_buttons)
     day_keyboard.row(back_button, cancel_button, next_button)
     return day_keyboard
@@ -76,7 +76,6 @@ def create_minute_keyboard():
 
 
 def create_keyboard_according_date_type(date_type: str, date_data: dict = None):
-
     match date_type:
         case 'year':
             return create_year_keyboard()
@@ -99,7 +98,6 @@ back_button = InlineKeyboardButton('◀️Back', callback_data="date_back")
 cancel_button = InlineKeyboardButton('Cancel', callback_data="date_cancel")
 next_button = InlineKeyboardButton('Next▶️', callback_data="date_next")
 
-
 # Task keyboards
 one_time_task_button = InlineKeyboardButton("One time task", callback_data="one_time_task")
 routine_task_button = InlineKeyboardButton("Routine task", callback_data="routine_task")
@@ -120,6 +118,8 @@ def create_one_time_task_menu_keyboard():
     back_button_task = InlineKeyboardButton("Back", callback_data='back_one_time_task')
     one_time_task_menu_kb.add(add_task_button, see_all_button, back_button_task)
     return one_time_task_menu_kb
+
+
 # one time task modification keyboard
 
 
@@ -129,9 +129,10 @@ def create_one_time_task_create_task_parameters():
     start_date_button = InlineKeyboardButton(text="Start Date 📅", callback_data="set_start_date")
     due_date_button = InlineKeyboardButton(text="Due Date 📅", callback_data="set_due_date")
     description_button = InlineKeyboardButton(text="Description ✏️", callback_data="set_description")
-    status_button = InlineKeyboardButton(text="Status ✅", callback_data="set_status")
+    status_button = InlineKeyboardButton(text="Set status 📊", callback_data="set_status")
+    complete_button = InlineKeyboardButton(text="Complete setting✅", callback_data="complete_task_setting")
     delete_button = InlineKeyboardButton(text="Delete ❌", callback_data="delete_task")
     task_parameters_kb.add(task_name_button)
     task_parameters_kb.row(start_date_button, due_date_button)
-    task_parameters_kb.add(description_button, status_button, delete_button)
+    task_parameters_kb.add(description_button, status_button, complete_button, delete_button)
     return task_parameters_kb
