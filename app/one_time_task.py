@@ -1,6 +1,6 @@
 from aiogram import Dispatcher, types
 from aiogram.dispatcher import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from .keyboards import create_year_keyboard, create_keyboard_according_date_type, \
     create_one_time_task_create_task_parameters
@@ -296,6 +296,21 @@ async def set_description(call: CallbackQuery, state: FSMContext):
     await state.update_data(data)
 
 
+async def insert_description(msg: Message, state: FSMContext):
+
+    data = await state.get_data()
+
+    data['one_time_task']['description'] = msg.text
+
+    text = "Choose on of the following options to apply\n" + get_task_text(data["one_time_task"])
+    await msg.answer(
+        text,
+        reply_markup=create_one_time_task_create_task_parameters())
+
+    await state.finish()
+    await state.update_data(data)
+
+
 async def task_complete(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     await call.message.edit_text('You have completed setting a task, I will tell when to start it')
@@ -308,6 +323,7 @@ async def task_complete(call: CallbackQuery, state: FSMContext):
 
 
 def register_one_time_task_handlers(dp: Dispatcher):
+
     dp.register_callback_query_handler(add_one_time_task, lambda call: call.data == 'add_one_time_task')
 
     dp.register_callback_query_handler(edit_task_name, lambda call: call.data == call.data == 'set_name')
@@ -315,6 +331,8 @@ def register_one_time_task_handlers(dp: Dispatcher):
     dp.register_message_handler(enter_name, state=OneTimeTask.SETTING_A_NAME)
 
     dp.register_callback_query_handler(set_date, lambda call: call.data in ['set_start_date', 'set_due_date'])
+
+    dp.register_message_handler(insert_description, state=OneTimeTask.SETTING_A_DESCRIPTION)
 
     dp.register_callback_query_handler(date_type_handler, lambda call: call.data.startswith("set_year|"),
                                        state=[OneTimeTask.SETTING_A_START_DATE, OneTimeTask.SETTING_A_DUE_DATE])
